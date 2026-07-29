@@ -1,9 +1,10 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { AdminService } from './admin.service';
+import { Roles } from '../auth/decorators/roles.decorator';
 
-// TODO: guard this whole controller with an AdminGuard (role === 'admin')
-// once the auth middleware from technical plan §5 is wired up — nothing
-// here should be reachable by a supplier or customer token.
+// Nothing in here is reachable by a supplier or customer token — enforced
+// by RolesGuard reading this class-level decorator, not by convention.
+@Roles('admin')
 @Controller('admin')
 export class AdminController {
   constructor(private readonly admin: AdminService) {}

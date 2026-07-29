@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -11,7 +11,14 @@ export class ReviewsService {
     });
   }
 
-  reply(reviewId: string, supplierReply: string) {
+  // A supplier can only reply to reviews left on their own storefront —
+  // checked here, not just implied by who happens to know the review id.
+  async reply(reviewId: string, callingSupplierId: string, supplierReply: string) {
+    const review = await this.prisma.review.findUnique({ where: { id: reviewId } });
+    if (!review) throw new NotFoundException('Review not found');
+    if (review.supplierId !== callingSupplierId) {
+      throw new ForbiddenException('Cannot reply to another supplier\'s review');
+    }
     return this.prisma.review.update({ where: { id: reviewId }, data: { supplierReply } });
   }
 

@@ -1,11 +1,13 @@
 import { Body, Controller, Post, Req } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CheckoutDto } from './dto/checkout.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller()
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
 
+  @Roles('customer')
   @Post('checkout')
   checkout(@Req() req: any, @Body() dto: CheckoutDto) {
     return this.orders.checkout(req.user.sub, dto);
