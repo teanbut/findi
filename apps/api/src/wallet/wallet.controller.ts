@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Post, Req } from '@nestjs/common';
 import { WalletService } from './wallet.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 
@@ -20,6 +20,13 @@ export class WalletController {
   myStatement(@Req() req: any) {
     if (!req.user.supplierId) throw new ForbiddenException('No supplier profile on this account yet');
     return this.wallet.statement(req.user.supplierId);
+  }
+
+  @Roles('supplier')
+  @Post('me/withdraw')
+  withdraw(@Req() req: any, @Body() body: { amount: number }) {
+    if (!req.user.supplierId) throw new ForbiddenException('No supplier profile on this account yet');
+    return this.wallet.withdraw(req.user.supplierId, body.amount);
   }
 
   // Admin override — support/dispute investigation needs to see any

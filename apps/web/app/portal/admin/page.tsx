@@ -1,7 +1,7 @@
 // Admin console — feature spec §12: approval queues, category capacity
 // view, order oversight, commission/payout runs, Feed It Forward ledger,
-// Fundraising administration. This pass covers the approval queues and
-// revenue view; order oversight/moderation/ledgers are still TODO.
+// Fundraising administration. Listing moderation and the dispute queue
+// specifically are still TODO beyond this pass.
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -12,8 +12,16 @@ import {
   adminApproveSupplier,
   adminApproveCategory,
   adminRevenue,
+  adminOrders,
+  adminCancelOrder,
+  adminFeedItForwardLedger,
+  adminDisburseFeedItForward,
+  adminPendingFundraisingOrgs,
+  adminApproveFundraisingOrg,
   ApiError,
   type SupplierProfile,
+  type AdminOrder,
+  type FundraisingOrg,
 } from '../../../lib/api';
 
 interface PendingCategoryRequest {
@@ -28,6 +36,11 @@ export default function AdminConsolePage() {
   const [pendingSuppliers, setPendingSuppliers] = useState<SupplierProfile[]>([]);
   const [pendingCategories, setPendingCategories] = useState<PendingCategoryRequest[]>([]);
   const [revenue, setRevenue] = useState<number | null>(null);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [pendingOrgs, setPendingOrgs] = useState<FundraisingOrg[]>([]);
+  const [ledger, setLedger] = useState<{ collected: number; disbursed: number; available: number } | null>(null);
+  const [disburseRecipient, setDisburseRecipient] = useState('');
+  const [disburseAmount, setDisburseAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -40,12 +53,54 @@ export default function AdminConsolePage() {
       setError(err instanceof ApiError ? err.message : 'Could not load the approval queues.');
     }
 
+    adminOrders().then(setOrders).catch(() => setOrders([]));
+    adminFeedItForwardLedger().then(setLedger).catch(() => setLedger(null));
+    adminPendingFundraisingOrgs().then(setPendingOrgs).catch(() => setPendingOrgs([]));
+
     // Last 30 days, purely illustrative window for this pass.
     const to = new Date().toISOString();
     const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     adminRevenue(from, to)
       .then((r) => setRevenue(r.findiCommissionRevenue))
       .catch(() => setRevenue(null));
+  }
+
+  async function handleCancelOrder(id: string) {
+    const reason = window.prompt('Reason for cancelling this order?');
+    if (!reason) return;
+    setBusyId(id);
+    try {
+      await adminCancelOrder(id, reason);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not cancel this order.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDisburse(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      await adminDisburseFeedItForward(disburseRecipient, Number(disburseAmount), 'admin');
+      setDisburseRecipient('');
+      setDisburseAmount('');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not record this disbursement.');
+    }
+  }
+
+  async function handleApproveOrg(orgId: string) {
+    setBusyId(orgId);
+    try {
+      await adminApproveFundraisingOrg(orgId);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not approve this organisation.');
+    } finally {
+      setBusyId(null);
+    }
   }
 
   useEffect(() => {
@@ -148,8 +203,84 @@ export default function AdminConsolePage() {
         )}
       </section>
 
-      {/* TODO: listing moderation, order oversight, dispute queue, Feed It
-          Forward ledger, Fundraising administration (feature spec §12) */}
+      <section aria-label="Orders">
+        <h2>Recent orders</h2>
+        {orders.length === 0 ? (
+          <p>No orders yet.</p>
+        ) : (
+          <ul>
+            {orders.map((o) => (
+              <li key={o.id}>
+                #{o.id.slice(0, 8)} — {o.status} — R{o.total}
+                {o.fundraisingOrg ? ` — supporting ${o.fundraisingOrg.name}` : ''}
+                <ul>
+                  {o.items.map((item) => (
+                    <li key={item.id}>
+                      {item.listing.title} × {item.quantity} — {item.collectionStatus}
+                    </li>
+                  ))}
+                </ul>
+                {o.status !== 'cancelled' && (
+                  <button type="button" disabled={busyId === o.id} onClick={() => handleCancelOrder(o.id)}>
+                    {busyId === o.id ? 'Cancelling…' : 'Cancel order'}
+                  </button>
+                )}
+                {/* NOTE: cancelling here marks the order cancelled and logs
+                    it — it does not reverse payment splits or trigger a
+                    real refund yet, since that needs the payment gateway
+                    (feature spec §18 #2). */}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section aria-label="Feed It Forward ledger">
+        <h2>Feed It Forward ledger</h2>
+        {ledger ? (
+          <p>
+            Collected: R{ledger.collected.toFixed(2)} · Disbursed: R{ledger.disbursed.toFixed(2)} · Available: R
+            {ledger.available.toFixed(2)}
+          </p>
+        ) : (
+          <p>Loading…</p>
+        )}
+        <p>
+          This is tracked entirely separately from Findi commission revenue above (feature spec §6.4) — never
+          combined into one figure.
+        </p>
+        <form onSubmit={handleDisburse}>
+          <label>
+            Recipient
+            <input required value={disburseRecipient} onChange={(e) => setDisburseRecipient(e.target.value)} />
+          </label>
+          <label>
+            Amount (R)
+            <input required type="number" min={0.01} step="0.01" value={disburseAmount} onChange={(e) => setDisburseAmount(e.target.value)} />
+          </label>
+          <button type="submit">Record disbursement</button>
+        </form>
+      </section>
+
+      <section aria-label="Pending fundraising organisations">
+        <h2>Pending fundraising organisations</h2>
+        {pendingOrgs.length === 0 ? (
+          <p>Nothing waiting.</p>
+        ) : (
+          <ul>
+            {pendingOrgs.map((org) => (
+              <li key={org.id}>
+                {org.name} — {org.type} — code {org.code}
+                <button type="button" disabled={busyId === org.id} onClick={() => handleApproveOrg(org.id)}>
+                  {busyId === org.id ? 'Approving…' : 'Approve'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* TODO: listing moderation, dispute queue (feature spec §12) */}
     </main>
   );
 }

@@ -1,10 +1,19 @@
-import { Controller, ForbiddenException, Get, Param, Req } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Post, Req } from '@nestjs/common';
 import { FundraisingService } from './fundraising.service';
 import { Roles } from '../auth/decorators/roles.decorator';
+import type { FundraisingOrgType } from '@findi/shared';
 
 @Controller('fundraising')
 export class FundraisingController {
   constructor(private readonly fundraising: FundraisingService) {}
+
+  // Any authenticated fundraising_org-role user can apply — this creates
+  // the FundraisingOrganisation itself (feature spec §7, decision #13).
+  @Roles('fundraising_org')
+  @Post('apply')
+  apply(@Req() req: any, @Body() body: { name: string; type: FundraisingOrgType }) {
+    return this.fundraising.apply(req.user.sub, body.name, body.type);
+  }
 
   // An org sees only its own dashboard — req.user.orgId (set by
   // JwtAuthGuard), never a URL param.
@@ -22,6 +31,17 @@ export class FundraisingController {
     return this.fundraising.dashboard(orgId);
   }
 
-  // TODO: POST /fundraising/apply (org registration), GET /:orgId/reports
-  // (monthly exportable reports — feature spec §7), admin approve/reject.
+  @Roles('admin')
+  @Get('pending')
+  pending() {
+    return this.fundraising.pending();
+  }
+
+  @Roles('admin')
+  @Post(':orgId/approve')
+  approve(@Param('orgId') orgId: string, @Req() req: any) {
+    return this.fundraising.approve(orgId, req.user.sub);
+  }
+
+  // TODO: GET /:orgId/reports (monthly exportable reports — feature spec §7)
 }

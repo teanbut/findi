@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -7,6 +7,32 @@ export class WalletService {
 
   getBalance(supplierId: string) {
     return this.prisma.supplierWallet.findUnique({ where: { supplierId } });
+  }
+
+  /**
+   * "Withdraw" from the Findi Wallet mockups in the proposal. This moves
+   * money out of availableBalance and records it — it does NOT trigger a
+   * real bank transfer, which needs the payment gateway/banking
+   * integration (still open, feature spec §18 #2). Until that exists,
+   * a withdrawal here is a request/record, not a completed payment —
+   * worth being explicit about rather than implying money actually moved.
+   */
+  async withdraw(supplierId: string, amount: number) {
+    if (amount <= 0) throw new BadRequestException('Withdrawal amount must be positive');
+
+    const wallet = await this.prisma.supplierWallet.findUnique({ where: { supplierId } });
+    if (!wallet) throw new NotFoundException('No wallet for this supplier yet');
+    if (Number(wallet.availableBalance) < amount) {
+      throw new BadRequestException('Withdrawal amount exceeds available balance');
+    }
+
+    await this.prisma.supplierWallet.update({
+      where: { supplierId },
+      data: { availableBalance: { decrement: amount } },
+    });
+    return this.prisma.walletTransaction.create({
+      data: { walletId: supplierId, type: 'payout', amount: -amount },
+    });
   }
 
   statement(supplierId: string) {

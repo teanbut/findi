@@ -155,7 +155,73 @@ export function myWalletBalance() {
   return request<WalletBalance>('/wallet/me');
 }
 
+export function myWithdraw(amount: number) {
+  return request('/wallet/me/withdraw', { method: 'POST', body: JSON.stringify({ amount }) });
+}
+
 // ---- Admin ----
+export interface AdminOrder {
+  id: string;
+  status: string;
+  subtotal: string;
+  feedItForwardAmount: string;
+  total: string;
+  placedAt: string;
+  items: { id: string; quantity: number; lineTotal: string; collectionStatus: string; listing: { title: string } }[];
+  paymentSplits: { recipientType: string; recipientId: string | null; amount: string }[];
+  fundraisingOrg: { name: string } | null;
+}
+
+export function adminOrders() {
+  return request<AdminOrder[]>('/admin/orders');
+}
+
+export function adminCancelOrder(id: string, reason: string) {
+  return request(`/admin/orders/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) });
+}
+
+export function adminFeedItForwardLedger() {
+  return request<{ collected: number; disbursed: number; available: number }>('/feed-it-forward/ledger');
+}
+
+export function adminDisburseFeedItForward(recipient: string, amount: number, approvedBy: string, note?: string) {
+  return request('/feed-it-forward/disbursements', {
+    method: 'POST',
+    body: JSON.stringify({ recipient, amount, approvedBy, note }),
+  });
+}
+
+// ---- Fundraising ----
+export interface FundraisingOrg {
+  id: string;
+  name: string;
+  type: string;
+  code: string;
+  status: string;
+}
+
+export interface FundraisingDashboard {
+  orgId: string;
+  totalRaised: number;
+  supporterCount: number;
+  orderCount: number;
+}
+
+export function applyFundraisingOrg(name: string, type: string) {
+  return request<FundraisingOrg>('/fundraising/apply', { method: 'POST', body: JSON.stringify({ name, type }) });
+}
+
+export function myFundraisingDashboard() {
+  return request<FundraisingDashboard>('/fundraising/me/dashboard');
+}
+
+export function adminPendingFundraisingOrgs() {
+  return request<FundraisingOrg[]>('/fundraising/pending');
+}
+
+export function adminApproveFundraisingOrg(orgId: string) {
+  return request(`/fundraising/${orgId}/approve`, { method: 'POST' });
+}
 export function adminPendingSuppliers() {
   return request<SupplierProfile[]>('/admin/suppliers/pending');
 }

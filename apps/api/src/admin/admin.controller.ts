@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 
@@ -8,6 +8,21 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @Controller('admin')
 export class AdminController {
   constructor(private readonly admin: AdminService) {}
+
+  @Get('orders')
+  orders() {
+    return this.admin.orders();
+  }
+
+  @Get('orders/:id')
+  getOrder(@Param('id') id: string) {
+    return this.admin.getOrder(id);
+  }
+
+  @Post('orders/:id/cancel')
+  cancelOrder(@Param('id') id: string, @Req() req: any, @Body() body: { reason: string }) {
+    return this.admin.cancelOrder(id, req.user.sub, body.reason);
+  }
 
   @Get('suppliers/pending')
   pendingSuppliers() {
