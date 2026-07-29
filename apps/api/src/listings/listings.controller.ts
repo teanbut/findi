@@ -14,6 +14,12 @@ export class ListingsController {
     return this.listings.browse({ categoryId, supplierId });
   }
 
+  @Public()
+  @Get(':id')
+  getById(@Param('id') id: string) {
+    return this.listings.getById(id);
+  }
+
   @Roles('supplier')
   @Post()
   create(@Req() req: any, @Body() dto: CreateListingDto) {

@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 
@@ -47,6 +47,15 @@ export class ListingsService {
       include: { supplier: true, category: true },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async getById(id: string) {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id },
+      include: { supplier: { include: { approvedSellerScore: true } }, category: true },
+    });
+    if (!listing) throw new NotFoundException('Listing not found');
+    return listing;
   }
 
   pause(id: string, supplierId: string) {
