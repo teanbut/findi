@@ -1,0 +1,400 @@
+// Findi database schema
+// Mirrors FINDI_TECHNICAL_DESIGN_AND_IMPLEMENTATION_PLAN.md §3.
+// Two design rules encoded structurally, not just by convention:
+//  1. A supplier's listing permission is checked against SupplierCategory,
+//     category by category — never against tier alone (feature spec §5.3).
+//  2. Feed It Forward and Fundraising ledgers are separate tables, never
+//     joined into revenue/commission reporting (feature spec §6.4, §11.3).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  customer
+  supplier
+  fundraising_org
+  admin
+}
+
+enum SupplierTier {
+  farmer
+  local_business
+  community_seller
+  rescue_partner
+}
+
+enum SupplierStatus {
+  pending
+  approved
+  rejected
+  suspended
+}
+
+enum CategoryApprovalStatus {
+  pending
+  approved
+}
+
+enum ListingStatus {
+  draft
+  active
+  paused
+}
+
+enum OrderStatus {
+  placed
+  ready_for_collection
+  collected
+  completed
+  cancelled
+  refunded
+}
+
+enum CollectionStatus {
+  pending
+  ready
+  collected
+  no_show
+  refunded
+}
+
+enum PaymentSplitRecipientType {
+  supplier
+  findi_commission
+  feed_it_forward
+  fundraising_org
+}
+
+enum PaymentSplitStatus {
+  pending
+  settled
+}
+
+enum WalletTransactionType {
+  sale
+  payout
+  adjustment
+}
+
+enum FeedItForwardSourceType {
+  customer_order
+  supplier_donation
+}
+
+enum FindiPointsTransactionType {
+  purchase
+  referral
+  review
+  redeem
+  donate
+}
+
+enum FundraisingOrgType {
+  school
+  church
+  club
+  ngo
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  phone        String?
+  passwordHash String
+  role         UserRole
+  createdAt    DateTime @default(now())
+
+  customerProfile     CustomerProfile?
+  supplierProfile     SupplierProfile?
+  fundraisingOrgLink  FundraisingOrganisation?
+}
+
+model CustomerProfile {
+  userId  String   @id
+  user    User     @relation(fields: [userId], references: [id])
+  name    String
+  addresses Json // array of address objects
+  defaultPaymentMethodRef String?
+
+  orders               Order[]
+  findiPointsLedger    FindiPointsTransaction[]
+  reviews              Review[]
+}
+
+model SupplierProfile {
+  id             String         @id @default(uuid())
+  userId         String         @unique
+  user           User           @relation(fields: [userId], references: [id])
+  businessName   String
+  tier           SupplierTier
+  status         SupplierStatus @default(pending)
+  bankingDetails Json?
+  complianceDocs Json? // array of doc references
+
+  categories        SupplierCategory[]
+  listings          Listing[]
+  wallet            SupplierWallet?
+  referralsGiven    SupplierReferral[] @relation("ReferringSupplier")
+  referralsReceived SupplierReferral[] @relation("ReferredSupplier")
+  approvedSellerScore FindiApprovedSellerScore?
+  reviews           Review[]
+
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id       String     @id @default(uuid())
+  name     String
+  parentId String?
+  parent   Category?  @relation("CategoryParent", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryParent")
+
+  supplierCategories SupplierCategory[]
+  listings           Listing[]
+}
+
+// The mechanism behind "Sarah is approved for Flour, Rice and Sugar" —
+// approval lives here, per category, not on SupplierProfile.tier alone.
+model SupplierCategory {
+  id         String                  @id @default(uuid())
+  supplierId String
+  supplier   SupplierProfile         @relation(fields: [supplierId], references: [id])
+  categoryId String
+  category   Category                @relation(fields: [categoryId], references: [id])
+  status     CategoryApprovalStatus  @default(pending)
+  approvedAt DateTime?
+
+  @@unique([supplierId, categoryId])
+}
+
+model FundraisingOrganisation {
+  id             String             @id @default(uuid())
+  userId         String             @unique
+  user           User               @relation(fields: [userId], references: [id])
+  name           String
+  type           FundraisingOrgType
+  code           String             @unique
+  status         SupplierStatus     @default(pending)
+  bankingDetails Json?
+
+  orders   Order[]
+  ledger   FundraisingLedgerEntry[]
+  payouts  FundraisingPayout[]
+}
+
+model Listing {
+  id                    String        @id @default(uuid())
+  supplierId            String
+  supplier              SupplierProfile @relation(fields: [supplierId], references: [id])
+  categoryId            String
+  category              Category      @relation(fields: [categoryId], references: [id])
+  title                 String
+  description           String
+  photos                Json // array of URLs
+  unit                  String
+  originalPrice         Decimal       @db.Decimal(10, 2)
+  discountedPrice       Decimal       @db.Decimal(10, 2)
+  quantityAvailable     Int
+  collectionWindowStart DateTime
+  collectionWindowEnd   DateTime
+  pickupAddress         String
+  status                ListingStatus @default(draft)
+  recurrenceRule        String?
+
+  orderItems     OrderItem[]
+  localBoxItems  LocalBoxItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LocalBox {
+  id              String   @id @default(uuid())
+  name            String
+  description     String
+  refreshSchedule String?
+  active          Boolean  @default(true)
+
+  items LocalBoxItem[]
+}
+
+model LocalBoxItem {
+  id        String   @id @default(uuid())
+  boxId     String
+  box       LocalBox @relation(fields: [boxId], references: [id])
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id])
+  quantity  Int
+}
+
+model Order {
+  id                  String      @id @default(uuid())
+  customerId          String
+  customer            CustomerProfile @relation(fields: [customerId], references: [userId])
+  fundraisingOrgId    String?
+  fundraisingOrg      FundraisingOrganisation? @relation(fields: [fundraisingOrgId], references: [id])
+  status              OrderStatus @default(placed)
+  subtotal            Decimal     @db.Decimal(10, 2)
+  feedItForwardAmount Decimal     @default(0) @db.Decimal(10, 2)
+  total               Decimal     @db.Decimal(10, 2)
+  placedAt            DateTime    @default(now())
+
+  items                    OrderItem[]
+  paymentSplits            PaymentSplit[]
+  feedItForwardLedgerEntry FeedItForwardLedgerEntry[]
+  fundraisingLedgerEntry   FundraisingLedgerEntry[]
+  findiPointsTransactions  FindiPointsTransaction[]
+}
+
+model OrderItem {
+  id               String            @id @default(uuid())
+  orderId          String
+  order            Order             @relation(fields: [orderId], references: [id])
+  listingId        String
+  listing          Listing           @relation(fields: [listingId], references: [id])
+  supplierId       String
+  quantity         Int
+  unitPrice        Decimal           @db.Decimal(10, 2)
+  lineTotal        Decimal           @db.Decimal(10, 2)
+  collectionStatus CollectionStatus  @default(pending)
+
+  review Review?
+}
+
+// One row per recipient per order — the queryable record behind the
+// R380 worked example in the proposal (Farmer R160 / Honey R108 / etc).
+model PaymentSplit {
+  id            String                    @id @default(uuid())
+  orderId       String
+  order         Order                     @relation(fields: [orderId], references: [id])
+  recipientType PaymentSplitRecipientType
+  recipientId   String? // supplierId, or null for findi_commission/feed_it_forward
+  amount        Decimal                   @db.Decimal(10, 2)
+  status        PaymentSplitStatus        @default(pending)
+}
+
+model SupplierWallet {
+  supplierId      String          @id
+  supplier        SupplierProfile @relation(fields: [supplierId], references: [id])
+  availableBalance Decimal        @default(0) @db.Decimal(10, 2)
+  pendingBalance   Decimal        @default(0) @db.Decimal(10, 2)
+
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id        String                @id @default(uuid())
+  walletId  String
+  wallet    SupplierWallet        @relation(fields: [walletId], references: [supplierId])
+  orderId   String?
+  type      WalletTransactionType
+  amount    Decimal               @db.Decimal(10, 2)
+  createdAt DateTime              @default(now())
+}
+
+// Ring-fenced ledgers — deliberately never referenced by revenue reporting.
+model FeedItForwardLedgerEntry {
+  id         String                  @id @default(uuid())
+  sourceType FeedItForwardSourceType
+  orderId    String?
+  order      Order?                  @relation(fields: [orderId], references: [id])
+  supplierId String?
+  amount     Decimal                 @db.Decimal(10, 2)
+  createdAt  DateTime                @default(now())
+}
+
+model FeedItForwardDisbursement {
+  id           String   @id @default(uuid())
+  recipient    String
+  amount       Decimal  @db.Decimal(10, 2)
+  note         String?
+  approvedBy   String
+  disbursedAt  DateTime @default(now())
+}
+
+model FundraisingLedgerEntry {
+  id        String                  @id @default(uuid())
+  orgId     String
+  org       FundraisingOrganisation @relation(fields: [orgId], references: [id])
+  orderId   String
+  order     Order                   @relation(fields: [orderId], references: [id])
+  amount    Decimal                 @db.Decimal(10, 2)
+  createdAt DateTime                @default(now())
+}
+
+model FundraisingPayout {
+  id          String                  @id @default(uuid())
+  orgId       String
+  org         FundraisingOrganisation @relation(fields: [orgId], references: [id])
+  amount      Decimal                 @db.Decimal(10, 2)
+  periodStart DateTime
+  periodEnd   DateTime
+  paidAt      DateTime                @default(now())
+}
+
+model FindiPointsTransaction {
+  id         String                     @id @default(uuid())
+  customerId String
+  customer   CustomerProfile            @relation(fields: [customerId], references: [userId])
+  type       FindiPointsTransactionType
+  points     Int
+  orderId    String?
+  order      Order?                     @relation(fields: [orderId], references: [id])
+  createdAt  DateTime                   @default(now())
+}
+
+model Review {
+  id           String          @id @default(uuid())
+  orderItemId  String          @unique
+  orderItem    OrderItem       @relation(fields: [orderItemId], references: [id])
+  customerId   String
+  customer     CustomerProfile @relation(fields: [customerId], references: [userId])
+  supplierId   String
+  supplier     SupplierProfile @relation(fields: [supplierId], references: [id])
+  rating       Int
+  comment      String?
+  supplierReply String?
+  createdAt    DateTime        @default(now())
+}
+
+model SupplierReferral {
+  id                 String    @id @default(uuid())
+  referringSupplierId String
+  referringSupplier   SupplierProfile @relation("ReferringSupplier", fields: [referringSupplierId], references: [id])
+  referredSupplierId  String
+  referredSupplier    SupplierProfile @relation("ReferredSupplier", fields: [referredSupplierId], references: [id])
+  status             String    @default("pending") // pending | live | rewarded
+  rewardType         String?   // featured_listing | reduced_commission
+  rewardAppliedAt    DateTime?
+  createdAt          DateTime  @default(now())
+}
+
+model FindiApprovedSellerScore {
+  supplierId      String          @id
+  supplier        SupplierProfile @relation(fields: [supplierId], references: [id])
+  productQuality  Int             @default(0)
+  customerService Int             @default(0)
+  fairPricing     Int             @default(0)
+  localFocus      Int             @default(0)
+  reliability     Int             @default(0)
+  badgeAwardedAt  DateTime?
+}
+
+// Every approval, rejection, category grant and manual admin intervention
+// writes here — "who approved this and when" stays answerable.
+model AuditLogEntry {
+  id        String   @id @default(uuid())
+  actorId   String
+  action    String
+  entity    String
+  entityId  String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+}

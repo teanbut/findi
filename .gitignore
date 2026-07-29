@@ -1,0 +1,16 @@
+node_modules/
+.next/
+dist/
+build/
+*.log
+.env
+.env.local
+.env.*.local
+.DS_Store
+*.tsbuildinfo
+coverage/
+.turbo/
+
+# Local scratch / working docs stay out of the repo
+*.ogg
+.claude/
