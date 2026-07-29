@@ -14,6 +14,15 @@ export class ListingsController {
     return this.listings.browse({ categoryId, supplierId });
   }
 
+  // Declared before ':id' — otherwise the dynamic route would swallow
+  // this literal path first.
+  @Roles('supplier')
+  @Get('mine')
+  mine(@Req() req: any) {
+    if (!req.user.supplierId) throw new ForbiddenException('No supplier profile on this account yet');
+    return this.listings.mine(req.user.supplierId);
+  }
+
   @Public()
   @Get(':id')
   getById(@Param('id') id: string) {

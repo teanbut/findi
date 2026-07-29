@@ -93,3 +93,89 @@ export function checkout(payload: CheckoutRequest) {
     body: JSON.stringify(payload),
   });
 }
+
+// ---- Categories (public) ----
+export interface Category {
+  id: string;
+  name: string;
+  parentId: string | null;
+}
+
+export function listCategories() {
+  return request<Category[]>('/categories');
+}
+
+// ---- Suppliers ----
+export interface SupplierProfile {
+  id: string;
+  businessName: string;
+  tier: string;
+  status: string;
+  categories: { categoryId: string; status: string; category?: Category }[];
+}
+
+export function applySupplier(input: { businessName: string; tier: string; categoryIds: string[] }) {
+  return request<SupplierProfile>('/suppliers/apply', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function requestCategory(categoryId: string) {
+  return request(`/suppliers/categories/${categoryId}/request`, { method: 'POST' });
+}
+
+export function myListings() {
+  return request<ListingWithSupplier[]>('/listings/mine');
+}
+
+export interface CreateListingInput {
+  categoryId: string;
+  title: string;
+  description: string;
+  photos: string[];
+  unit: string;
+  originalPrice: number;
+  discountedPrice: number;
+  quantityAvailable: number;
+  collectionWindowStart: string;
+  collectionWindowEnd: string;
+  pickupAddress: string;
+}
+
+export function createListing(input: CreateListingInput) {
+  return request('/listings', { method: 'POST', body: JSON.stringify(input) });
+}
+
+// ---- Wallet ----
+export interface WalletBalance {
+  supplierId: string;
+  availableBalance: string;
+  pendingBalance: string;
+}
+
+export function myWalletBalance() {
+  return request<WalletBalance>('/wallet/me');
+}
+
+// ---- Admin ----
+export function adminPendingSuppliers() {
+  return request<SupplierProfile[]>('/admin/suppliers/pending');
+}
+
+export function adminPendingCategoryRequests() {
+  return request<{ supplierId: string; categoryId: string; supplier: SupplierProfile; category: Category }[]>(
+    '/admin/categories/pending-requests',
+  );
+}
+
+export function adminApproveSupplier(id: string) {
+  return request(`/suppliers/${id}/approve`, { method: 'POST' });
+}
+
+export function adminApproveCategory(supplierId: string, categoryId: string) {
+  return request(`/suppliers/${supplierId}/categories/${categoryId}/approve`, { method: 'POST' });
+}
+
+export function adminRevenue(from: string, to: string) {
+  return request<{ from: string; to: string; findiCommissionRevenue: number }>(
+    `/admin/revenue?from=${from}&to=${to}`,
+  );
+}

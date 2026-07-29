@@ -49,6 +49,16 @@ export class ListingsService {
     });
   }
 
+  // A supplier's own listings, any status (draft/active/paused) — unlike
+  // browse() above, which is the public "active only" catalogue view.
+  mine(supplierId: string) {
+    return this.prisma.listing.findMany({
+      where: { supplierId },
+      include: { category: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async getById(id: string) {
     const listing = await this.prisma.listing.findUnique({
       where: { id },
