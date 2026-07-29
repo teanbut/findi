@@ -11,5 +11,15 @@
     "build": "npm run build --workspace=packages/shared && npm run build --workspace=apps/api && npm run build --workspace=apps/web",
     "prisma:generate": "npm run prisma:generate --workspace=apps/api",
     "prisma:migrate": "npm run prisma:migrate --workspace=apps/api"
+  },
+  "overrides": {
+    "sharp": "^0.35.0",
+    "postcss": "^8.5.18"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "msgpackr-extract@3.0.4": true,
+    "prisma@5.22.0": true
   }
 }

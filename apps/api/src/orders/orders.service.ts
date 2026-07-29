@@ -116,7 +116,18 @@ export class OrdersService {
 
       // One PaymentSplit row per recipient — the queryable record behind
       // the worked example (Farmer R160 / Honey R108 / Findi commission R40).
-      const splitRows = [
+      // Explicitly typed as the full recipientType union so pushing the
+      // Feed It Forward / Fundraising rows below doesn't get narrowed away
+      // by whatever the array literal's first two elements happen to be.
+      type SplitRow = {
+        orderId: string;
+        recipientType: 'supplier' | 'findi_commission' | 'feed_it_forward' | 'fundraising_org';
+        recipientId: string | null;
+        amount: number;
+        status: 'pending' | 'settled';
+      };
+
+      const splitRows: SplitRow[] = [
         ...supplierSplits.map((s) => ({
           orderId: order.id,
           recipientType: 'supplier' as const,
