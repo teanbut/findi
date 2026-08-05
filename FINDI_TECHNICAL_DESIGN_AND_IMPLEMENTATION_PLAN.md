@@ -153,8 +153,19 @@ Grouped by domain rather than listing every route — the shape matters more tha
 | `/findi-points` | Balance, earning history, redemption (once live) |
 | `/reviews` | Submit, respond, moderate |
 | `/admin/*` | Approval queues, tier/category assignment, moderation, analytics, content management |
+| `/admin/mail` | findi.co.za mailbox management — list/create/delete mailboxes, read/send within a mailbox (§5a) |
 
 Auth: JWT access token (short-lived) + refresh token, role-based middleware guards on every route group above — a supplier token should be structurally incapable of hitting `/admin/*`, not just blocked by a UI that hides the button.
+
+### 5a. Email hosting & portal-managed mailboxes
+
+Findi's email (`info@findi.co.za`, `melanie@findi.co.za`, etc.) is hosted externally on **domains.co.za (cPanel)** — Findi doesn't run its own mail server. This was a deliberate choice over self-hosting: a self-hosted mail server on the same shared Ubuntu box as twelvewoodenspoons.co.za and torahcanvas.co.za would carry real deliverability risk (a fresh IP has no sending reputation) and a shared-blast-radius risk (a blacklisted IP hurts all three sites), for no real benefit at this scale.
+
+The admin portal fronts two separate external systems, kept structurally distinct:
+- **Provisioning** (create/delete a mailbox) — cPanel's UAPI (`Email::add_pop` / `Email::delete_pop`), authenticated with the cPanel hosting account's own credentials (`MAIL_CPANEL_*` env vars). This is a control-plane operation, not something IMAP/SMTP can do.
+- **Read/send** (within an existing mailbox) — standard IMAP (read) and SMTP (send), authenticated with that mailbox's own credentials.
+
+`MailAccount` (Prisma) is Findi's record of which mailboxes it manages — address, display name, and the mailbox password **encrypted at rest** (AES-256-GCM, `MAIL_ENCRYPTION_KEY`), decrypted only per-request to open an IMAP/SMTP connection, never logged or returned to the client. All of `/admin/mail/*` is `@Roles('admin')`-gated, same as the rest of the admin console.
 
 ---
 
@@ -176,6 +187,7 @@ Ties directly to feature spec §15.3:
 - **PCI scope**: card data never touches Findi's own servers — gateway-hosted checkout or tokenisation only, enforced by never having a `card_number` column anywhere in the schema
 - **Ledger integrity**: Feed It Forward and Fundraising tables are structurally excluded from revenue/commission reporting (§3 above) — verified with a test that asserts revenue reports sum only `payment_splits` rows where `recipient_type = 'findi_commission'`
 - **Password/session hygiene**: bcrypt or argon2 hashing, short-lived access tokens, refresh-token rotation
+- **Mailbox credentials** (§5a): mailbox passwords encrypted at rest (AES-256-GCM), never logged or returned in an API response; cPanel provisioning credentials live in server-side env only, never in the database
 
 ---
 

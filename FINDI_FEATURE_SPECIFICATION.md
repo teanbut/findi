@@ -159,6 +159,17 @@ The approval question isn't *"can another seller join?"* — it's *"does this ca
 
 Every seller earns the badge on the same five criteria, shown on their storefront so customers know exactly what it means: **product quality, customer service, fair pricing, local focus, reliability.** This is the customer-facing expression of "if it's on Findi, it's been vetted" — see §10.2.
 
+### 5.6b Verified Findi Partner (proposed — relationship to §5.6 badge open, see §18 decision 16)
+
+A second, stricter badge requested by the business owner (2026-08-04), earned after the following are all in place — track-record criteria, not application-time criteria:
+- Verified identity
+- Verified banking details
+- Consistent order fulfilment
+- Good customer ratings
+- Reliable service
+
+*(Open question: does this replace Findi Approved Seller, or sit above it as a second tier a seller graduates into after time on the platform? If both badges exist, storefronts need visually distinct treatment so the two don't read as the same thing to customers — see §18 decision 16.)*
+
 ### 5.7 Supplier agreement protection clause
 
 > Findi reserves the right to limit the number of suppliers within a product category to maintain a healthy marketplace and ensure value for both customers and suppliers.
@@ -315,7 +326,7 @@ Kept deliberately simple at launch rather than building a complex loyalty progra
 - Supplier response to reviews (portal-side)
 - **Referral codes** — invite a friend, both earn Findi Points (§9)
 - **Findi Points** balance, earning history, and (later) redemption/donation
-- Loyalty/impact tracking: "food saved," "money saved," total given back through Feed It Forward, total raised for a supported organisation through Fundraising — shown on the customer's profile
+- **"My Impact" personal dashboard** — the customer's cumulative footprint on Findi, shown on their profile: money saved, local businesses supported, food rescued, families helped (via Feed It Forward), schools/organisations supported (via Fundraising) — the personal counterpart to the platform-wide figures in §4
 - Push notifications (app) / email notifications (web): order status changes, new deals near me, collection window reminders, expiring favourites
 
 ### 10.6 Support
@@ -390,7 +401,7 @@ Suppliers love data — this isn't a bare "supplier dashboard," it's real insigh
 - **Fundraising administration**: approve fundraising organisations, issue codes, view per-organisation totals/supporters/orders, trigger organisation payouts, generate monthly reports (§7)
 - **Local Boxes curation**: build/edit box contents, pricing, refresh schedule (§8)
 - **Findi Points administration**: point-earning rules, and later, redemption/donation rules (§9)
-- **Analytics**: customer growth, order volume, GMV, category performance, area/heatmap of demand vs. supply, food-waste-saved impact metrics, repeat-purchase and conversion trends
+- **Analytics & Impact**: customer growth, order volume, GMV, area/heatmap of demand vs. supply, repeat-purchase and conversion trends, **supplier growth**, **category health** (coverage/performance per category, feeds §5.5), **collection performance** (on-time collection / no-show rates), **most popular products**, **top fundraising organisations** (by amount raised), **food saved this month**
 - **Content management**: homepage counters (§4), featured suppliers/categories, blog posts, FAQ entries, banners/promos
 - **User management**: customer accounts, supplier/fundraising-organisation accounts, Findi staff accounts and role-based permissions
 - **Notification/campaign tools** *(Phase 2)*: push a promo or announcement to a segment
@@ -428,6 +439,8 @@ Suppliers love data — this isn't a bare "supplier dashboard," it's real insigh
 | Email | Order confirmation/receipt, password reset, weekly digest, supplier payout statements, fundraising monthly reports |
 | SMS/WhatsApp | OTP verification, collection window reminders, WhatsApp community groups by area |
 | In-app/web banner | Admin announcements, promos |
+
+**Findi's WhatsApp Business number: 071 352 4407.** Confirmed by the business owner (2026-08-04) as the number to build all WhatsApp touchpoints above around. Full WhatsApp Business API integration (beyond OTP/notifications) is scoped as an open decision — see §18 decision 17.
 
 ---
 
@@ -486,6 +499,7 @@ Login → Dashboard (platform KPIs) → Supplier approvals, tiers & category ass
 ### Phase 1 — MVP (Launch)
 - Customer accounts
 - Supplier applications and approval (four tiers, category-level approval)
+- **Community Sellers actively recruited and onboarded alongside the other three tiers** (moved up from Growth phase per the business owner, 2026-08-04 — was previously schema-only at launch, marketed from Phase 2)
 - Products (named, priced, photographed listings)
 - Shopping cart (multi-supplier, split payment)
 - Payments
@@ -495,7 +509,6 @@ Login → Dashboard (platform KPIs) → Supplier approvals, tiers & category ass
 - Plus, already established as essential: customer/supplier registration, product categories, secure payments, order tracking, supplier dashboards, notifications, reviews & ratings, referral codes
 
 ### Phase 2 — Growth
-- Community Sellers actively recruited and onboarded (the tier exists in the schema from Phase 1; this is when it's actively marketed)
 - Supplier referral programme (§5.10)
 - Findi Points (earning)
 - Feed It Forward — full customer + supplier-facing rollout (ledger foundation is Phase 1, per the architecture-first principle above)
@@ -545,6 +558,7 @@ Login → Dashboard (platform KPIs) → Supplier approvals, tiers & category ass
 12. **Fundraising commission split** — confirm the percentage of Findi's commission allocated to a supporting organisation, and the payout cycle (proposed: monthly).
 13. **Fundraising organisation vetting** — who qualifies (schools/churches/clubs only, or broader causes), and who approves new organisations.
 14. **Findi Points earning rates** — how many points per Rand spent, per referral, per review — and the eventual redemption/donation exchange rate.
-15. **Supplier referral reward** — free featured listing vs. reduced commission for a month (or let the referring supplier choose), and confirm the trigger is the referred supplier going live, not just applying (§5.10).
+16. **Verified Findi Partner vs. Findi Approved Seller** — are these the same badge (renamed, with updated criteria), or two distinct trust tiers a seller progresses through — Approved Seller at application, Verified Partner after a track record? Affects the data model and storefront UI (§5.6b).
+17. **WhatsApp Business API integration scope** — "fully integrate Findi with the WhatsApp API" (business owner, 2026-08-04) needs scoping: OTP/notifications are already planned (§14) — does "fully" mean conversational ordering, customer support over WhatsApp, or something narrower?
 
-*(Resolved: multi-supplier basket + split payment is a firm MVP requirement, not optional — see §15.2. The Fundraising Module ships at MVP per the business owner's explicit Phase 1 list, with its data model designed to scale per the architecture-first principle in §17.)*
+*(Resolved: multi-supplier basket + split payment is a firm MVP requirement, not optional — see §15.2. The Fundraising Module ships at MVP per the business owner's explicit Phase 1 list, with its data model designed to scale per the architecture-first principle in §17. Supplier referral reward (decision 15, formerly open) — the business owner's preference (2026-08-04) is a featured listing, confirming the primary option already in §5.10; trigger remains the referred supplier going live, not just applying.)*
