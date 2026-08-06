@@ -398,3 +398,19 @@ model AuditLogEntry {
   after     Json?
   createdAt DateTime @default(now())
 }
+
+// A findi.co.za mailbox (info@, melanie@, ...) hosted on domains.co.za/cPanel,
+// managed from the admin portal. The mailbox password is stored encrypted
+// (AES-256-GCM, MAIL_ENCRYPTION_KEY) — this table never holds it in plaintext.
+// Creating/deleting the underlying cPanel mailbox is a separate API call
+// (MailProvisioningService); this table is Findi's record of what exists.
+model MailAccount {
+  id                String    @id @default(uuid())
+  address           String    @unique
+  displayName       String?
+  encryptedPassword String
+  active            Boolean   @default(true)
+  createdByAdminId  String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}

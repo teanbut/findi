@@ -245,3 +245,59 @@ export function adminRevenue(from: string, to: string) {
     `/admin/revenue?from=${from}&to=${to}`,
   );
 }
+
+// ---- Mail (findi.co.za mailboxes, hosted on domains.co.za/cPanel) ----
+export interface MailAccount {
+  id: string;
+  address: string;
+  displayName: string | null;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface MailMessageSummary {
+  uid: number;
+  from: string;
+  subject: string;
+  date: string;
+  seen: boolean;
+}
+
+export interface MailMessageDetail {
+  from: string;
+  to: string;
+  subject: string;
+  date: string;
+  text: string;
+  html?: string;
+}
+
+export function adminMailAccounts() {
+  return request<MailAccount[]>('/admin/mail/accounts');
+}
+
+export function adminCreateMailAccount(localPart: string, displayName?: string) {
+  return request<MailAccount>('/admin/mail/accounts', {
+    method: 'POST',
+    body: JSON.stringify({ localPart, displayName }),
+  });
+}
+
+export function adminDeleteMailAccount(id: string) {
+  return request(`/admin/mail/accounts/${id}`, { method: 'DELETE' });
+}
+
+export function adminMailInbox(id: string, limit?: number) {
+  return request<MailMessageSummary[]>(`/admin/mail/accounts/${id}/inbox${limit ? `?limit=${limit}` : ''}`);
+}
+
+export function adminMailMessage(id: string, uid: number) {
+  return request<MailMessageDetail>(`/admin/mail/accounts/${id}/inbox/${uid}`);
+}
+
+export function adminSendMail(id: string, to: string, subject: string, text: string) {
+  return request(`/admin/mail/accounts/${id}/send`, {
+    method: 'POST',
+    body: JSON.stringify({ to, subject, text }),
+  });
+}

@@ -15,6 +15,7 @@ import { FundraisingModule } from './fundraising/fundraising.module';
 import { FindiPointsModule } from './findi-points/findi-points.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { AdminModule } from './admin/admin.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AdminModule } from './admin/admin.module';
     FindiPointsModule,
     ReviewsModule,
     AdminModule,
+    MailModule,
   ],
   providers: [
     // Order matters: JwtAuthGuard runs first and populates req.user,

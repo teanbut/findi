@@ -18,10 +18,19 @@ import {
   adminDisburseFeedItForward,
   adminPendingFundraisingOrgs,
   adminApproveFundraisingOrg,
+  adminMailAccounts,
+  adminCreateMailAccount,
+  adminDeleteMailAccount,
+  adminMailInbox,
+  adminMailMessage,
+  adminSendMail,
   ApiError,
   type SupplierProfile,
   type AdminOrder,
   type FundraisingOrg,
+  type MailAccount,
+  type MailMessageSummary,
+  type MailMessageDetail,
 } from '../../../lib/api';
 
 interface PendingCategoryRequest {
@@ -44,6 +53,16 @@ export default function AdminConsolePage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  const [mailAccounts, setMailAccounts] = useState<MailAccount[]>([]);
+  const [selectedMailbox, setSelectedMailbox] = useState<string | null>(null);
+  const [inbox, setInbox] = useState<MailMessageSummary[]>([]);
+  const [openMessage, setOpenMessage] = useState<MailMessageDetail | null>(null);
+  const [newMailboxLocalPart, setNewMailboxLocalPart] = useState('');
+  const [newMailboxDisplayName, setNewMailboxDisplayName] = useState('');
+  const [composeTo, setComposeTo] = useState('');
+  const [composeSubject, setComposeSubject] = useState('');
+  const [composeText, setComposeText] = useState('');
+
   async function refresh() {
     try {
       const [suppliers, categories] = await Promise.all([adminPendingSuppliers(), adminPendingCategoryRequests()]);
@@ -56,6 +75,7 @@ export default function AdminConsolePage() {
     adminOrders().then(setOrders).catch(() => setOrders([]));
     adminFeedItForwardLedger().then(setLedger).catch(() => setLedger(null));
     adminPendingFundraisingOrgs().then(setPendingOrgs).catch(() => setPendingOrgs([]));
+    adminMailAccounts().then(setMailAccounts).catch(() => setMailAccounts([]));
 
     // Last 30 days, purely illustrative window for this pass.
     const to = new Date().toISOString();
@@ -107,6 +127,75 @@ export default function AdminConsolePage() {
     if (token && role === 'admin') refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, role]);
+
+  async function handleSelectMailbox(id: string) {
+    setSelectedMailbox(id);
+    setOpenMessage(null);
+    try {
+      setInbox(await adminMailInbox(id));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not load this inbox.');
+      setInbox([]);
+    }
+  }
+
+  async function handleOpenMessage(uid: number) {
+    if (!selectedMailbox) return;
+    try {
+      setOpenMessage(await adminMailMessage(selectedMailbox, uid));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not open this message.');
+    }
+  }
+
+  async function handleCreateMailbox(e: React.FormEvent) {
+    e.preventDefault();
+    setBusyId('new-mailbox');
+    try {
+      await adminCreateMailAccount(newMailboxLocalPart, newMailboxDisplayName || undefined);
+      setNewMailboxLocalPart('');
+      setNewMailboxDisplayName('');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not create this mailbox.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDeleteMailbox(id: string, address: string) {
+    if (!window.confirm(`Delete ${address}? This removes the mailbox from cPanel too.`)) return;
+    setBusyId(id);
+    try {
+      await adminDeleteMailAccount(id);
+      if (selectedMailbox === id) {
+        setSelectedMailbox(null);
+        setInbox([]);
+        setOpenMessage(null);
+      }
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not delete this mailbox.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleSendMail(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedMailbox) return;
+    setBusyId('compose');
+    try {
+      await adminSendMail(selectedMailbox, composeTo, composeSubject, composeText);
+      setComposeTo('');
+      setComposeSubject('');
+      setComposeText('');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not send this message.');
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function handleApproveSupplier(id: string) {
     setBusyId(id);
@@ -278,6 +367,103 @@ export default function AdminConsolePage() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section aria-label="Findi email">
+        <h2>Findi email</h2>
+        <p>
+          Mailboxes hosted on domains.co.za (cPanel). Creating one here also creates it on the host; deleting one
+          here removes it there too.
+        </p>
+
+        <form onSubmit={handleCreateMailbox}>
+          <label>
+            New mailbox local part
+            <input
+              required
+              placeholder="e.g. support"
+              pattern="[a-z0-9._-]+"
+              value={newMailboxLocalPart}
+              onChange={(e) => setNewMailboxLocalPart(e.target.value)}
+            />
+          </label>
+          <span>@findi.co.za</span>
+          <label>
+            Display name (optional)
+            <input value={newMailboxDisplayName} onChange={(e) => setNewMailboxDisplayName(e.target.value)} />
+          </label>
+          <button type="submit" disabled={busyId === 'new-mailbox'}>
+            {busyId === 'new-mailbox' ? 'Creating…' : 'Create mailbox'}
+          </button>
+        </form>
+
+        {mailAccounts.length === 0 ? (
+          <p>No mailboxes yet.</p>
+        ) : (
+          <ul>
+            {mailAccounts.map((account) => (
+              <li key={account.id}>
+                <button type="button" onClick={() => handleSelectMailbox(account.id)}>
+                  {account.address} {account.displayName ? `(${account.displayName})` : ''}
+                </button>
+                <button type="button" disabled={busyId === account.id} onClick={() => handleDeleteMailbox(account.id, account.address)}>
+                  {busyId === account.id ? 'Deleting…' : 'Delete'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {selectedMailbox ? (
+          <>
+            <h3>Inbox</h3>
+            {inbox.length === 0 ? (
+              <p>No messages.</p>
+            ) : (
+              <ul>
+                {inbox.map((msg) => (
+                  <li key={msg.uid}>
+                    <button type="button" onClick={() => handleOpenMessage(msg.uid)}>
+                      {msg.seen ? '' : '● '}
+                      {msg.from} — {msg.subject} — {new Date(msg.date).toLocaleString()}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {openMessage ? (
+              <article>
+                <p>
+                  <strong>From:</strong> {openMessage.from} <br />
+                  <strong>To:</strong> {openMessage.to} <br />
+                  <strong>Subject:</strong> {openMessage.subject} <br />
+                  <strong>Date:</strong> {new Date(openMessage.date).toLocaleString()}
+                </p>
+                <p style={{ whiteSpace: 'pre-wrap' }}>{openMessage.text}</p>
+              </article>
+            ) : null}
+
+            <h3>Compose</h3>
+            <form onSubmit={handleSendMail}>
+              <label>
+                To
+                <input required type="email" value={composeTo} onChange={(e) => setComposeTo(e.target.value)} />
+              </label>
+              <label>
+                Subject
+                <input required value={composeSubject} onChange={(e) => setComposeSubject(e.target.value)} />
+              </label>
+              <label>
+                Message
+                <textarea required value={composeText} onChange={(e) => setComposeText(e.target.value)} />
+              </label>
+              <button type="submit" disabled={busyId === 'compose'}>
+                {busyId === 'compose' ? 'Sending…' : 'Send'}
+              </button>
+            </form>
+          </>
+        ) : null}
       </section>
 
       {/* TODO: listing moderation, dispute queue (feature spec §12) */}
